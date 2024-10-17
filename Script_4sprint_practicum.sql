@@ -61,8 +61,15 @@ JOIN paying_count USING(race);
 
 -- Задача 2. Исследование внутриигровых покупок
 -- 2.1. Статистические показатели по полю amount:
--- Напишите ваш запрос здесь
-
+SELECT
+	COUNT(amount) AS count_amount,
+	SUM(amount) AS all_amount,
+	MIN(amount) AS min_amount,
+	MAX(amount) AS max_amount,
+	ROUND(AVG(amount)::NUMERIC, 2) AS avg_amount,
+	PERCENTILE_DISC(0.50) WITHIN GROUP (ORDER BY amount) AS median,
+	ROUND(STDDEV(amount)::NUMERIC,2) AS standart_deviation
+FROM fantasy.events;
 
 -- 2.2: Аномальные нулевые покупки:
 -- Напишите ваш запрос здесь
