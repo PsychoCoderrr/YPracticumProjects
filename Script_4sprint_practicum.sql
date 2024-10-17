@@ -109,11 +109,24 @@ JOIN count_of_paying_users USING(payer);
 	
 
 -- 2.4: Популярные эпические предметы:
--- Напишите ваш запрос здесь
+
+SELECT 
+	game_items,
+	COUNT(transaction_id) count_of_bought,
+	COUNT(DISTINCT id) AS count_of_users,/*Мы понимаем, что один человек мог несколько раз купить определенный предмет, следовательно его id
+						будет встречаться несколько раз*/
+	COUNT(DISTINCT id)::NUMERIC / (SELECT COUNT(id)
+	FROM fantasy.users) AS share_of_users
+FROM fantasy.events
+LEFT JOIN fantasy.items i USING(item_code)
+GROUP BY game_items
+ORDER BY share_of_users DESC; /* так как доля линейно зависит от кол-ва пользователей, мы можем сортировать сразу по доле*/
 
 -- Часть 2. Решение ad hoc-задач
 -- Задача 1. Зависимость активности игроков от расы персонажа:
--- Напишите ваш запрос здесь
+
+SELECT
+
 
 -- Задача 2: Частота покупок
 -- Напишите ваш запрос здесь
