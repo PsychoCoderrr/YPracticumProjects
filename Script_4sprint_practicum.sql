@@ -12,17 +12,14 @@
 
 -- 1.1. Доля платящих пользователей по всем данным:
 
-
--- перед насписанием запроса отдельно проверили, сколько различных id 
---содержится в таблицах users и events, поняли, что в events уникальных 
---id меньше, следовательно, можем сделать вывод, что в events только те id, 
---которые совершали покупки, а в users вообще все id
-SELECT
-	COUNT(id) AS all_players,
-	(SELECT COUNT(DISTINCT id) 
-	FROM fantasy.events) AS paying_players,
-	ROUND((SELECT COUNT(DISTINCT id) 
-	FROM fantasy.events)::NUMERIC / COUNT(id), 2) AS share_of_paying_players
+SELECT 
+	COUNT(id) AS all_player,
+	(SELECT COUNT(id)
+	FROM fantasy.users
+	WHERE payer = 1) AS paying_players,
+	ROUND((SELECT COUNT(id)
+	FROM fantasy.users
+	WHERE payer = 1)::NUMERIC / COUNT(id), 3) AS share_of_paying
 FROM fantasy.users;
 
 -- 1.2. Доля платящих пользователей в разрезе расы персонажа:
@@ -41,13 +38,10 @@ paying_count AS
 (
 	SELECT
 		r.race,
-		COUNT(DISTINCT e.id) AS paying_users_category /*считаем именно по id из таблицы events, так же используем DISTINCT,
-							 так как с одного id может совершаться несколько транзакций,
-							 при подсчете id в таблице users DISTINCT нам не нужен, так как
-							 там поле id является первичным ключом и соответственно не може повторяться*/
-	FROM fantasy.events e
-	LEFT JOIN fantasy.users u USING(id)
+		COUNT(id) AS paying_users_category 
+	FROM fantasy.users u
 	LEFT JOIN fantasy.race r USING(race_id)
+	WHERE payer = 1
 	GROUP BY race
 )
 SELECT 
@@ -59,8 +53,10 @@ FROM all_count
 JOIN paying_count USING(race);
 
 
+
 -- Задача 2. Исследование внутриигровых покупок
 -- 2.1. Статистические показатели по полю amount:
+
 SELECT
 	COUNT(amount) AS count_amount,
 	SUM(amount) AS all_amount,
@@ -73,9 +69,44 @@ FROM fantasy.events;
 
 -- 2.2: Аномальные нулевые покупки:
 -- Напишите ваш запрос здесь
+SELECT 
+	(SELECT COUNT(amount) 
+	FROM fantasy.events
+	WHERE amount = 0 ) AS zero_count_amount,
+	(SELECT COUNT(amount) 
+	FROM fantasy.events
+	WHERE amount = 0 )::NUMERIC / COUNT(amount) AS share_of_zero_amount
+FROM fantasy.events;
 
 -- 2.3: Сравнительный анализ активности платящих и неплатящих игроков:
 -- Напишите ваш запрос здесь
+WITH category_of_users AS
+(
+	SELECT 
+		payer,
+		COUNT(id) AS total_count_of_users
+	FROM fantasy.users
+	GROUP BY payer
+),
+count_of_paying_users AS 
+(
+	SELECT 
+		payer,
+		COUNT(transaction_id) AS count_of_paying_users,
+		SUM(amount) AS total_sum
+	FROM fantasy.events e 
+	JOIN fantasy.users u USING(id) 
+	GROUP BY payer
+)
+SELECT 
+	payer,
+	total_count_of_users,
+	count_of_paying_users,
+	total_sum,
+	ROUND(total_sum::NUMERIC / count_of_paying_users, 2) AS avg_total_sum
+FROM category_of_users
+JOIN count_of_paying_users USING(payer);
+	
 
 -- 2.4: Популярные эпические предметы:
 -- Напишите ваш запрос здесь
