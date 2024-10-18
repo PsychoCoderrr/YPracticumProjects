@@ -127,14 +127,14 @@ ORDER BY share_of_users DESC; /* так как доля линейно зави�
 
 WITH all_registred_users AS 
 (
-	SELECT 
+	SELECT /* используется для подсчета всех игроков */
 		race,
 		COUNT(id) AS all_users
 	FROM fantasy.users
 	JOIN fantasy.race r USING(race_id)
 	GROUP BY race
 ),
-buyers AS (
+buyers AS ( /*используется для подсчета кол-ва игроков, которые совершают внутриигровые покупки*/
 	SELECT 
 		race,
 		COUNT(DISTINCT id) unique_buyers
@@ -144,10 +144,53 @@ buyers AS (
 	JOIN all_registred_users USING(race)
 	GROUP BY race
 ),
-
+paying_users AS ( /* используется для подсчета количества платящих игроков*/ 
+	SELECT 
+		race, 
+		COUNT(id) AS paying_users
+	FROM fantasy.users
+	JOIN fantasy.race USING(race_id)
+	WHERE payer = 1
+	GROUP BY race
+),
+users_buy_information AS 
+(
+	SELECT 
+		race,
+		id,
+		COUNT(transaction_id) AS count_of_purchases,
+		AVG(amount) AS avg_solo_amount,
+		SUM(amount) AS sum_amount_for_user
+	FROM fantasy.events
+	JOIN fantasy.users USING(id)
+	JOIN fantasy.race USING(race_id)
+	GROUP BY race, id
+),
+avg_users_but_information AS
+(
+	SELECT 
+		race,
+		ROUND(AVG(count_of_purchases)::NUMERIC, 2) AS avg_count_of_purchases_for_user,
+		ROUND(AVG(avg_solo_amount)::NUMERIC, 2) AS avg_amount_for_user,
+		ROUND(AVG(sum_amount_for_user)::NUMERIC, 2) AS avg_total_sum_for_user
+	FROM users_buy_information
+	GROUP BY race
+)
 SELECT
-	*
-FROM buyers;
+	u.race,
+	all_users,
+	unique_buyers,
+	ROUND(unique_buyers::NUMERIC / all_users, 2) AS share_of_buying_users,
+	paying_users,
+	ROUND(paying_users::NUMERIC / unique_buyers, 2) AS share_of_paying_users,
+	avg_count_of_purchases_for_user,
+	avg_amount_for_user,
+	avg_total_sum_for_user
+FROM all_registred_users u
+JOIN buyers b USING(race)
+JOIN paying_users pu USING(race)
+JOIN avg_users_but_information USING(race);
+
 	
 
 
