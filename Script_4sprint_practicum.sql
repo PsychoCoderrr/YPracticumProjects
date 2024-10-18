@@ -3,7 +3,7 @@
  * на покупку внутриигровой валюты «райские лепестки», а также оценить 
  * активность игроков при совершении внутриигровых покупок
  * 
- * Автор: 
+ * Автор: Колдашев В.А.
  * Дата: 
 */
 
@@ -125,7 +125,30 @@ ORDER BY share_of_users DESC; /* так как доля линейно зави�
 -- Часть 2. Решение ad hoc-задач
 -- Задача 1. Зависимость активности игроков от расы персонажа:
 
+WITH all_registred_users AS 
+(
+	SELECT 
+		race,
+		COUNT(id) AS all_users
+	FROM fantasy.users
+	JOIN fantasy.race r USING(race_id)
+	GROUP BY race
+),
+buyers AS (
+	SELECT 
+		race,
+		COUNT(DISTINCT id) unique_buyers
+	FROM fantasy.events
+	JOIN fantasy.users USING(id)
+	JOIN fantasy.race USING(race_id)
+	JOIN all_registred_users USING(race)
+	GROUP BY race
+),
+
 SELECT
+	*
+FROM buyers;
+	
 
 
 -- Задача 2: Частота покупок
