@@ -191,8 +191,50 @@ JOIN buyers b USING(race)
 JOIN paying_users pu USING(race)
 JOIN avg_users_but_information USING(race);
 
-	
-
-
 -- Задача 2: Частота покупок
 -- Напишите ваш запрос здесь
+
+WITH 
+users_with_lead AS 
+(
+	SELECT 
+		id,
+		e.date,
+		LEAD(e.date) OVER(PARTITION BY id ORDER BY e.date) next_date
+	FROM fantasy.events e
+),
+avg_diff_between_date AS
+(
+	SELECT
+		id,
+		ROUND(AVG(next_date::date - date::date), 2) AS diff_in_days
+	FROM users_with_lead
+	WHERE next_date IS NOT NULL 
+	GROUP BY id
+),
+user_count_of_transaction AS
+(
+	SELECT 
+		id, 
+		COUNT(transaction_id) count_of_purchases
+	FROM fantasy.events
+	GROUP BY id
+),
+user_information_and_ranking AS
+(
+	SELECT 
+		id,
+		count_of_purchases,
+		diff_in_days,
+		NTILE(3) OVER( ORDER BY count_of_purchases DESC, diff_in_days) /*если оценивать частоту,
+																						то я считаю, что самый хороший случай, 
+																						когда человек делает много покупок и 
+																						разность по времени у него минимальная*/
+	FROM user_count_of_transaction
+	JOIN avg_diff_between_date USING(id)/*у человека может быть одна покупка, и тогда в
+										в поле со средней разностью между датами у него ничего не будет,
+										я считаю, что стоит исключить такого пользователя из выборки, т.к.
+										мы не можем делать выводы о его активности*/								
+)
+SELECT *
+FROM user_information_and_ranking;
