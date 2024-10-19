@@ -195,8 +195,8 @@ SELECT
 FROM all_registred_users u
 JOIN buyers b USING(race)
 JOIN paying_users pu USING(race)
-JOIN avg_users_but_information USING(race);
-
+JOIN avg_users_but_information USING(race)
+ORDER BY avg_count_of_purchases_for_user DESC;
 -- Задача 2: Частота покупок
 -- Напишите ваш запрос здесь
 
@@ -232,7 +232,7 @@ user_information_and_ranking AS
 		id,
 		count_of_purchases,
 		diff_in_days,
-		NTILE(3) OVER( ORDER BY count_of_purchases DESC, diff_in_days) named_ranking/*если оценивать частоту,
+		NTILE(3) OVER( ORDER BY count_of_purchases DESC, diff_in_days) ranking/*если оценивать частоту,
 																						то я считаю, что самый хороший случай, 
 																						когда человек делает много покупок и 
 																						разность по времени у него минимальная*/
@@ -241,6 +241,22 @@ user_information_and_ranking AS
 										я считаю, что стоит исключить такого пользователя из выборки, т.к.
 										мы не можем делать выводы о его активности*/								
 ),
+user_information_and_named_ranking AS
+(
+	SELECT 
+		id,
+		count_of_purchases,
+		diff_in_days,
+		CASE 
+			WHEN ranking = 1
+			THEN 'высокая частота'
+			WHEN ranking = 2
+			THEN 'умеренная частота'
+			WHEN ranking = 3
+			THEN 'низкая частота'
+		END AS named_ranking
+	FROM user_information_and_ranking						
+),
 avg_quantities AS 
 (
 	SELECT 
@@ -248,7 +264,7 @@ avg_quantities AS
 		COUNT(id) AS buying_users,
 		AVG(count_of_purchases) AS avg_count_of_purchases_per_user,
 		AVG(diff_in_days) AS avg_diff_between_dates_per_user
-	FROM user_information_and_ranking
+	FROM user_information_and_named_ranking
 	GROUP BY named_ranking
 ),
 paying_users_with_categories AS 
@@ -256,7 +272,7 @@ paying_users_with_categories AS
 	SELECT
 		named_ranking,
 		COUNT(uiar.id) AS paying_users
-	FROM user_information_and_ranking uiar
+	FROM user_information_and_named_ranking uiar
 	JOIN fantasy.users u USING(id)
 	WHERE u.payer = 1
 	GROUP BY named_ranking
@@ -266,8 +282,7 @@ SELECT
 	aq.buying_users,
 	puwc.paying_users,
 	ROUND(puwc.paying_users / aq.buying_users::NUMERIC, 2) AS share_of_paying_users,
-	aq.avg_count_of_purchases_per_user,
-	aq.avg_diff_between_dates_per_user
+	ROUND(aq.avg_count_of_purchases_per_user, 2),
+	ROUND(aq.avg_diff_between_dates_per_user, 2)
 FROM avg_quantities aq
-JOIN paying_users_with_categories puwc USING(named_ranking)
-ORDER BY named_ranking;
+JOIN paying_users_with_categories puwc USING(named_ranking);
