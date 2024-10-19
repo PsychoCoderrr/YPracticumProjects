@@ -116,6 +116,9 @@ SELECT
 	COUNT(transaction_id) count_of_bought,
 	COUNT(DISTINCT id) AS count_of_users,/*Мы понимаем, что один человек мог несколько раз купить определенный предмет, следовательно его id
 						будет встречаться несколько раз*/
+	ROUND(COUNT(transaction_id)::NUMERIC / (SELECT COUNT(transaction_id)
+	FROM fantasy.events
+	WHERE amount <> 0), 6) * 100 AS percent_of_purchases,
 	ROUND(COUNT(DISTINCT id)::NUMERIC / (SELECT COUNT(id)
 	FROM fantasy.users), 3) AS share_of_users
 FROM fantasy.events
