@@ -46,8 +46,8 @@ paying_count AS
 )
 SELECT 
 	race,
-	all_users_category,
 	paying_users_category,
+	all_users_category,
 	ROUND(paying_users_category::NUMERIC / all_users_category, 2) AS share_of_paying_players
 FROM all_count
 JOIN paying_count USING(race);
@@ -58,7 +58,7 @@ JOIN paying_count USING(race);
 -- 2.1. Статистические показатели по полю amount:
 
 SELECT
-	COUNT(amount) AS count_amount,
+	COUNT(amount) AS count_of_purchases,
 	SUM(amount) AS all_amount,
 	MIN(amount) AS min_amount,
 	MAX(amount) AS max_amount,
@@ -96,6 +96,7 @@ count_of_paying_users AS
 		SUM(amount) AS total_sum
 	FROM fantasy.events e 
 	JOIN fantasy.users u USING(id) 
+	WHERE amount <> 0
 	GROUP BY payer
 )
 SELECT 
@@ -115,10 +116,11 @@ SELECT
 	COUNT(transaction_id) count_of_bought,
 	COUNT(DISTINCT id) AS count_of_users,/*Мы понимаем, что один человек мог несколько раз купить определенный предмет, следовательно его id
 						будет встречаться несколько раз*/
-	COUNT(DISTINCT id)::NUMERIC / (SELECT COUNT(id)
-	FROM fantasy.users) AS share_of_users
+	ROUND(COUNT(DISTINCT id)::NUMERIC / (SELECT COUNT(id)
+	FROM fantasy.users), 3) AS share_of_users
 FROM fantasy.events
 LEFT JOIN fantasy.items i USING(item_code)
+WHERE amount <> 0
 GROUP BY game_items
 ORDER BY share_of_users DESC; /* так как доля линейно зависит от кол-ва пользователей, мы можем сортировать сразу по доле*/
 
@@ -164,6 +166,7 @@ users_buy_information AS
 	FROM fantasy.events
 	JOIN fantasy.users USING(id)
 	JOIN fantasy.race USING(race_id)
+	WHERE amount <> 0
 	GROUP BY race, id
 ),
 avg_users_but_information AS
@@ -231,8 +234,7 @@ user_information_and_ranking AS
 																						когда человек делает много покупок и 
 																						разность по времени у него минимальная*/
 	FROM user_count_of_transaction
-	JOIN avg_diff_between_date USING(id)/*у человека может быть одна покупка, и тогда в
-										в поле со средней разностью между датами у него ничего не будет,
+	JOIN avg_diff_between_date USING(id)/*у человека может быть одна покупка, его ну будет в таблице avg_diff_between_date,
 										я считаю, что стоит исключить такого пользователя из выборки, т.к.
 										мы не можем делать выводы о его активности*/								
 ),
@@ -260,7 +262,7 @@ SELECT
 	aq.named_ranking,
 	aq.buying_users,
 	puwc.paying_users,
-	puwc.paying_users / aq.buying_users AS share_of_paying_users,
+	ROUND(puwc.paying_users / aq.buying_users::NUMERIC, 2) AS share_of_paying_users,
 	aq.avg_count_of_purchases_per_user,
 	aq.avg_diff_between_dates_per_user
 FROM avg_quantities aq
