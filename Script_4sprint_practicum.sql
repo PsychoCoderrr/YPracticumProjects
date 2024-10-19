@@ -5,6 +5,7 @@
  * 
  * Автор: Колдашев В.А.
  * Дата: 19.10.2024
+ * Ссылка на GitHub: https://github.com/PsychoCoderrr/YPracticumProjects/blob/main/Script_4sprint_practicum.sql
 */
 
 -- Часть 1. Исследовательский анализ данных
