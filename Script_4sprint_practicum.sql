@@ -92,7 +92,7 @@ count_of_paying_users AS
 (
 	SELECT 
 		payer,
-		COUNT(transaction_id) AS count_of_paying_users,
+		COUNT(transaction_id) AS count_of_buying_users,
 		SUM(amount) AS total_sum
 	FROM fantasy.events e 
 	JOIN fantasy.users u USING(id) 
@@ -102,9 +102,9 @@ count_of_paying_users AS
 SELECT 
 	payer,
 	total_count_of_users,
-	count_of_paying_users,
+	count_of_buying_users,
 	total_sum,
-	ROUND(total_sum::NUMERIC / count_of_paying_users, 2) AS avg_total_sum
+	ROUND(total_sum::NUMERIC / count_of_buying_users, 2) AS avg_total_sum
 FROM category_of_users
 JOIN count_of_paying_users USING(payer);
 	
