@@ -13,7 +13,7 @@
 
 -- 1.1. Доля платящих пользователей по всем данным:
 
-SELECT 
+/*SELECT 
 	COUNT(id) AS all_player,
 	(SELECT COUNT(id)
 	FROM fantasy.users
@@ -21,7 +21,15 @@ SELECT
 	ROUND((SELECT COUNT(id)
 	FROM fantasy.users
 	WHERE payer = 1)::NUMERIC / COUNT(id), 3) AS share_of_paying
-FROM fantasy.users;
+FROM fantasy.users;*/
+
+
+/* ниже вторая версия запроса, в которой кол-во платящих рассчитывается просто как сумма по полю payer*/
+SELECT
+	COUNT(id) AS all_player,
+	SUM(payer) AS paying_player,
+	ROUND(SUM(payer)::NUMERIC / COUNT(id), 3) AS share_of_paying
+FROM fantasy.users
 
 -- 1.2. Доля платящих пользователей в разрезе расы персонажа:
 -- Напишите ваш запрос здесь
@@ -31,6 +39,7 @@ WITH all_count AS
 	SELECT 
 		race,
 		COUNT(id) AS all_users_category
+		
 	FROM fantasy.users
 	LEFT JOIN fantasy.race USING(race_id)
 	GROUP BY race
@@ -51,8 +60,29 @@ SELECT
 	all_users_category,
 	ROUND(paying_users_category::NUMERIC / all_users_category, 2) AS share_of_paying_players
 FROM all_count
-JOIN paying_count USING(race);
+JOIN paying_count USING(race)
+ORDER BY 4 DESC;
 
+/* ниже вторая версия запроса, в которой кол-во платящих считается, как сумма по полю payer, добавлена сортировка по полю с долей, так как
+ * она кажется самой логичной в данном случае, а так же округление теперь идет до 4 цифры после запятой
+ */
+WITH all_count AS 
+(
+	SELECT 
+		race,
+		COUNT(id) AS all_users_category,
+		SUM(payer) AS paying_users_category
+	FROM fantasy.users
+	LEFT JOIN fantasy.race USING(race_id)
+	GROUP BY race
+)
+SELECT 
+	race,
+	paying_users_category,
+	all_users_category,
+	ROUND(paying_users_category::NUMERIC / all_users_category, 4) AS share_of_paying_players
+FROM all_count
+ORDER BY share_of_paying_players DESC;
 
 
 -- Задача 2. Исследование внутриигровых покупок
@@ -68,6 +98,18 @@ SELECT
 	ROUND(STDDEV(amount)::NUMERIC,2) AS standart_deviation
 FROM fantasy.events;
 
+/* второй запрос, где добавлена фильтрация по amount*/
+/*SELECT
+	COUNT(amount) AS count_of_purchases,
+	SUM(amount) AS all_amount,
+	MIN(amount) AS min_amount,
+	MAX(amount) AS max_amount,
+	ROUND(AVG(amount)::NUMERIC, 2) AS avg_amount,
+	PERCENTILE_DISC(0.50) WITHIN GROUP (ORDER BY amount) AS median,
+	ROUND(STDDEV(amount)::NUMERIC,2) AS standart_deviation
+FROM fantasy.events
+WHERE  amount <> 0;*/
+
 -- 2.2: Аномальные нулевые покупки:
 -- Напишите ваш запрос здесь
 SELECT 
@@ -81,7 +123,7 @@ FROM fantasy.events;
 
 -- 2.3: Сравнительный анализ активности платящих и неплатящих игроков:
 -- Напишите ваш запрос здесь
-WITH category_of_users AS
+/*WITH category_of_users AS
 (
 	SELECT 
 		payer,
@@ -104,6 +146,45 @@ SELECT
 	payer,
 	total_count_of_users,
 	count_of_purchases,
+	total_sum,
+	ROUND(total_sum::NUMERIC / total_count_of_users, 2) AS avg_total_sum
+FROM category_of_users
+JOIN count_of_paying_users USING(payer);*/
+
+/* вторая версия запроса, где за общее кол-во пользователей будут считаться пользователи, которые в целом совершали покупки,
+ * так же добавлено недостающее поле со средним кол-вом покупок на человека
+ */
+WITH category_of_users AS
+(
+	SELECT 
+		u.payer,
+		COUNT(DISTINCT e.id) AS total_count_of_users
+	FROM fantasy.events e
+	JOIN fantasy.users u USING(id)
+	GROUP BY payer
+),
+count_of_paying_users AS 
+(
+	SELECT 
+		payer,
+		COUNT(transaction_id) AS count_of_purchases,
+		SUM(amount) AS total_sum
+	FROM fantasy.events e 
+	JOIN fantasy.users u USING(id) 
+	WHERE amount <> 0
+	GROUP BY payer
+)
+SELECT 
+	CASE 
+		WHEN payer = 0
+		THEN 'non-paying'
+		WHEN payer = 1
+		THEN 'paying'
+	END AS named_category
+	,
+	total_count_of_users,
+	count_of_purchases,
+	ROUND(count_of_purchases::NUMERIC / total_count_of_users, 2) AS avg_count_of_purchases,
 	total_sum,
 	ROUND(total_sum::NUMERIC / total_count_of_users, 2) AS avg_total_sum
 FROM category_of_users
@@ -198,6 +279,80 @@ JOIN buyers b USING(race)
 JOIN paying_users pu USING(race)
 JOIN avg_users_but_information USING(race)
 ORDER BY avg_count_of_purchases_for_user DESC;
+
+/* вторая версия запроса*/
+WITH all_registred_users AS 
+(
+	SELECT /* используется для подсчета всех игроков */
+		race,
+		COUNT(id) AS all_users
+	FROM fantasy.users
+	JOIN fantasy.race r USING(race_id)
+	GROUP BY race
+),
+buyers AS ( /*используется для подсчета кол-ва игроков, которые совершают внутриигровые покупки*/
+	SELECT 
+		r.race,
+		COUNT(DISTINCT e.id) AS unique_buyers
+	FROM fantasy.events e
+	JOIN fantasy.users u USING(id)
+	JOIN fantasy.race r USING(race_id)
+	JOIN all_registred_users USING(race)
+	GROUP BY race
+),
+paying_users AS ( /* используется для подсчета количества платящих игроков*/ 
+	SELECT 
+		race, 
+		COUNT(id) AS paying_users
+	FROM fantasy.users
+	JOIN fantasy.race USING(race_id)
+	WHERE payer = 1
+	GROUP BY race
+),
+users_buy_information AS 
+(
+	SELECT 
+		race,
+		id,
+		COUNT(transaction_id) AS count_of_purchases,
+		AVG(amount) AS avg_solo_amount,
+		SUM(amount) AS sum_amount_for_user
+	FROM fantasy.events
+	JOIN fantasy.users USING(id)
+	JOIN fantasy.race USING(race_id)
+	WHERE amount <> 0
+	GROUP BY race, id
+),
+avg_users_but_information AS
+(
+	SELECT 
+		race,
+		ROUND(AVG(count_of_purchases)::NUMERIC, 2) AS avg_count_of_purchases_for_user,
+		ROUND(AVG(avg_solo_amount)::NUMERIC, 2) AS avg_amount_for_user,
+		ROUND(AVG(sum_amount_for_user)::NUMERIC, 2) AS avg_total_sum_for_user
+	FROM users_buy_information
+	GROUP BY race
+)
+SELECT
+	u.race,
+	all_users,
+	unique_buyers,
+	ROUND(unique_buyers::NUMERIC / all_users, 2) AS share_of_buying_users,
+	paying_users,
+	ROUND(paying_users::NUMERIC / unique_buyers, 2) AS share_of_paying_users, /*не совсем понял, почему доля платящих была посчитана неправильно
+																				она ведь и была получена делением платящих на покупателей,
+																				я добавил только в таблице byuers явное указание, что мы считаем
+																				id именно из таблицы event, но на ответ это не повлияло*/
+	avg_count_of_purchases_for_user,
+	avg_amount_for_user,
+	avg_total_sum_for_user
+FROM all_registred_users u
+JOIN buyers b USING(race)
+JOIN paying_users pu USING(race)
+JOIN avg_users_but_information USING(race)
+ORDER BY avg_count_of_purchases_for_user DESC;
+
+
 -- Задача 2: Частота покупок
 -- Напишите ваш запрос здесь
 
