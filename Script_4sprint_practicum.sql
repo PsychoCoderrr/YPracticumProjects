@@ -34,7 +34,7 @@ FROM fantasy.users
 -- 1.2. Доля платящих пользователей в разрезе расы персонажа:
 -- Напишите ваш запрос здесь
 
-WITH all_count AS 
+/*WITH all_count AS 
 (
 	SELECT 
 		race,
@@ -61,7 +61,7 @@ SELECT
 	ROUND(paying_users_category::NUMERIC / all_users_category, 2) AS share_of_paying_players
 FROM all_count
 JOIN paying_count USING(race)
-ORDER BY 4 DESC;
+ORDER BY 4 DESC;*/
 
 /* ниже вторая версия запроса, в которой кол-во платящих считается, как сумма по полю payer, добавлена сортировка по полю с долей, так как
  * она кажется самой логичной в данном случае, а так же округление теперь идет до 4 цифры после запятой
@@ -328,7 +328,12 @@ avg_users_but_information AS
 	SELECT 
 		race,
 		ROUND(AVG(count_of_purchases)::NUMERIC, 2) AS avg_count_of_purchases_for_user,
-		ROUND(AVG(avg_solo_amount)::NUMERIC, 2) AS avg_amount_for_user,
+		ROUND(AVG(avg_solo_amount)::NUMERIC, 2) AS avg_amount_for_user, /*Единственное только, хотелось бы сказать, что не совсем понятно, почему считать среднюю стоимость так,
+																		 как делаю это я неправильно, ведь по логике я считаю сначала считаю среднее значение покупки у одного 
+																		 пользователя и затем считаю среднее значение от этого по всем пользователям в пределах одной расы. А 
+																		 суммарную среднюю стоимость я считаю похожим образом, сначала нахожу суммарную стоимость покупок для 
+																		 каждого пользователя, а затем беру от этого среднее и получаю среднюю суммарную стоимость по пользователю, 
+																		 разве это не является еще одним способом решения?(Аналогичный текст продублирую в код)*/
 		ROUND(AVG(sum_amount_for_user)::NUMERIC, 2) AS avg_total_sum_for_user
 	FROM users_buy_information
 	GROUP BY race
@@ -356,7 +361,7 @@ ORDER BY avg_count_of_purchases_for_user DESC;
 -- Задача 2: Частота покупок
 -- Напишите ваш запрос здесь
 
-WITH 
+/*WITH 
 users_with_lead AS 
 (
 	SELECT 
@@ -396,6 +401,99 @@ user_information_and_ranking AS
 	JOIN avg_diff_between_date USING(id)/*у человека может быть одна покупка, его ну будет в таблице avg_diff_between_date,
 										я считаю, что стоит исключить такого пользователя из выборки, т.к.
 										мы не можем делать выводы о его активности*/								
+),
+user_information_and_named_ranking AS
+(
+	SELECT 
+		id,
+		count_of_purchases,
+		diff_in_days,
+		CASE 
+			WHEN ranking = 1
+			THEN 'высокая частота'
+			WHEN ranking = 2
+			THEN 'умеренная частота'
+			WHEN ranking = 3
+			THEN 'низкая частота'
+		END AS named_ranking
+	FROM user_information_and_ranking						
+),
+avg_quantities AS 
+(
+	SELECT 
+		named_ranking,
+		COUNT(id) AS buying_users,
+		AVG(count_of_purchases) AS avg_count_of_purchases_per_user,
+		AVG(diff_in_days) AS avg_diff_between_dates_per_user
+	FROM user_information_and_named_ranking
+	GROUP BY named_ranking
+),
+paying_users_with_categories AS 
+(
+	SELECT
+		named_ranking,
+		COUNT(uiar.id) AS paying_users
+	FROM user_information_and_named_ranking uiar
+	JOIN fantasy.users u USING(id)
+	WHERE u.payer = 1
+	GROUP BY named_ranking
+)
+SELECT 
+	aq.named_ranking,
+	aq.buying_users,
+	puwc.paying_users,
+	ROUND(puwc.paying_users / aq.buying_users::NUMERIC, 2) AS share_of_paying_users,
+	ROUND(aq.avg_count_of_purchases_per_user, 2),
+	ROUND(aq.avg_diff_between_dates_per_user, 2)
+FROM avg_quantities aq
+JOIN paying_users_with_categories puwc USING(named_ranking);*/
+
+
+
+
+
+/*вторая версия запроса*/
+WITH 
+users_with_lead AS 
+(
+	SELECT 
+		id,
+		e.date,
+		LEAD(e.date) OVER(PARTITION BY id ORDER BY e.date) next_date
+	FROM fantasy.events e
+),
+avg_diff_between_date AS
+(
+	SELECT
+		id,
+		ROUND(AVG(next_date::date - date::date), 2) AS diff_in_days
+	FROM users_with_lead
+	WHERE next_date IS NOT NULL 
+	GROUP BY id
+),
+user_count_of_transaction AS
+(
+	SELECT 
+		id, 
+		COUNT(transaction_id) count_of_purchases
+	FROM fantasy.events
+	WHERE amount <> 0 /*учет того, что покупки должны быть не с нулевой стоимостью*/
+	GROUP BY id
+	
+),
+user_information_and_ranking AS
+(
+	SELECT 
+		id,
+		count_of_purchases,
+		diff_in_days,
+		NTILE(3) OVER( ORDER BY count_of_purchases DESC, diff_in_days) ranking/*если оценивать частоту,
+																						то я считаю, что самый хороший случай, 
+																						когда человек делает много покупок и 
+																						разность по времени у него минимальная*/
+	FROM user_count_of_transaction
+	JOIN avg_diff_between_date USING(id)
+	WHERE count_of_purchases >= 25		/*добавлен учет того, что покупок должно быть больше 25*/					
 ),
 user_information_and_named_ranking AS
 (
