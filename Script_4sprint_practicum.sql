@@ -280,6 +280,8 @@ JOIN paying_users pu USING(race)
 JOIN avg_users_but_information USING(race)
 ORDER BY avg_count_of_purchases_for_user DESC;
 
+
+
 /* вторая версия запроса*/
 WITH all_registred_users AS 
 (
@@ -303,10 +305,11 @@ buyers AS ( /*используется для подсчета кол-ва иг�
 paying_users AS ( /* используется для подсчета количества платящих игроков*/ 
 	SELECT 
 		race, 
-		COUNT(id) AS paying_users
-	FROM fantasy.users
-	JOIN fantasy.race USING(race_id)
-	WHERE payer = 1
+		COUNT(DISTINCT e.id) AS paying_users
+	FROM fantasy.events e /*исправил место, откуда считаем платящих*/
+ 	JOIN fantasy.users u USING(id)
+	JOIN fantasy.race r USING(race_id)
+	WHERE u.payer = 1
 	GROUP BY race
 ),
 users_buy_information AS 
@@ -344,10 +347,7 @@ SELECT
 	unique_buyers,
 	ROUND(unique_buyers::NUMERIC / all_users, 2) AS share_of_buying_users,
 	paying_users,
-	ROUND(paying_users::NUMERIC / unique_buyers, 2) AS share_of_paying_users, /*не совсем понял, почему доля платящих была посчитана неправильно
-																				она ведь и была получена делением платящих на покупателей,
-																				я добавил только в таблице byuers явное указание, что мы считаем
-																				id именно из таблицы event, но на ответ это не повлияло*/
+	ROUND(paying_users::NUMERIC / unique_buyers, 2) AS share_of_paying_users, 
 	avg_count_of_purchases_for_user,
 	avg_amount_for_user,
 	avg_total_sum_for_user
@@ -461,6 +461,7 @@ users_with_lead AS
 		e.date,
 		LEAD(e.date) OVER(PARTITION BY id ORDER BY e.date) next_date
 	FROM fantasy.events e
+	WHERE amount <> 0
 ),
 avg_diff_between_date AS
 (
