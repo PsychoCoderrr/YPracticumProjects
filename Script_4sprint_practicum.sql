@@ -318,7 +318,7 @@ users_buy_information AS
 		race,
 		id,
 		COUNT(transaction_id) AS count_of_purchases,
-		AVG(amount) AS avg_solo_amount,
+		--AVG(amount) AS avg_solo_amount, данная строчка не нужна для дальнейших рассчетов
 		SUM(amount) AS sum_amount_for_user
 	FROM fantasy.events
 	JOIN fantasy.users USING(id)
@@ -331,12 +331,7 @@ avg_users_but_information AS
 	SELECT 
 		race,
 		ROUND(AVG(count_of_purchases)::NUMERIC, 2) AS avg_count_of_purchases_for_user,
-		ROUND(AVG(avg_solo_amount)::NUMERIC, 2) AS avg_amount_for_user, /*Единственное только, хотелось бы сказать, что не совсем понятно, почему считать среднюю стоимость так,
-																		 как делаю это я неправильно, ведь по логике я считаю сначала считаю среднее значение покупки у одного 
-																		 пользователя и затем считаю среднее значение от этого по всем пользователям в пределах одной расы. А 
-																		 суммарную среднюю стоимость я считаю похожим образом, сначала нахожу суммарную стоимость покупок для 
-																		 каждого пользователя, а затем беру от этого среднее и получаю среднюю суммарную стоимость по пользователю, 
-																		 разве это не является еще одним способом решения?(Аналогичный текст продублирую в код)*/
+		ROUND(AVG(sum_amount_for_user)::NUMERIC / AVG(count_of_purchases)::NUMERIC, 2) AS avg_amount_for_user,
 		ROUND(AVG(sum_amount_for_user)::NUMERIC, 2) AS avg_total_sum_for_user
 	FROM users_buy_information
 	GROUP BY race
