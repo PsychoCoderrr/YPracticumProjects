@@ -297,9 +297,13 @@ information_table AS
 (
 	SELECT
 		city_id,
-		COUNT(id) AS city_activity --не забыть потом в основном запросе заджойнить таблицу выше и посчитать долю
+		COUNT(id) AS city_activity, --не забыть потом в основном запросе заджойнить таблицу выше и посчитать долю
+		AVG(last_price / total_area) AS avg_price_for_square,
+		AVG(total_area) AS avg_area,
+		justify_days(ROUND(AVG(days_exposition)::NUMERIC)::int * INTERVAL '1 day')
 	FROM real_estate.flats
 	JOIN real_estate.city USING(city_id)
+	JOIN real_estate.advertisement USING(id)
 	JOIN count_of_saled_advertisements USING(city_id)
 	WHERE id IN (SELECT * FROM filtered_id) 
 	AND city_id <> (SELECT city_id FROM real_estate.city WHERE city = 'Санкт-Петербург')
