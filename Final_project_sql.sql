@@ -165,24 +165,47 @@ FROM helpful;
 --    Что можно сказать о зависимости этих параметров от месяца?
 
 -- Напишите ваш запрос здесь
-
-WITH 
+ 
+WITH limits AS (
+    SELECT  
+        PERCENTILE_DISC(0.99) WITHIN GROUP (ORDER BY total_area) AS total_area_limit,
+        PERCENTILE_DISC(0.99) WITHIN GROUP (ORDER BY rooms) AS rooms_limit,
+        PERCENTILE_DISC(0.99) WITHIN GROUP (ORDER BY balcony) AS balcony_limit,
+        PERCENTILE_DISC(0.99) WITHIN GROUP (ORDER BY ceiling_height) AS ceiling_height_limit_h,
+        PERCENTILE_DISC(0.01) WITHIN GROUP (ORDER BY ceiling_height) AS ceiling_height_limit_l
+    FROM real_estate.flats     
+),
+-- Найдём id объявлений, которые не содержат выбросы:
+filtered_id AS(
+    SELECT id
+    FROM real_estate.flats  
+    WHERE 
+        total_area < (SELECT total_area_limit FROM limits)
+        AND (rooms < (SELECT rooms_limit FROM limits) OR rooms IS NULL)
+        AND (balcony < (SELECT balcony_limit FROM limits) OR balcony IS NULL)
+        AND ((ceiling_height < (SELECT ceiling_height_limit_h FROM limits)
+            AND ceiling_height > (SELECT ceiling_height_limit_l FROM limits)) OR ceiling_height IS NULL)
+),
 full_advertisement AS
 (
 	SELECT 
 		*,
+		ROUND(last_price::NUMERIC/total_area::NUMERIC, 2) AS price_for_square_metr,
 		(first_day_exposition + days_exposition * INTERVAL '1 day')::DATE AS last_day_exposition,
 		EXTRACT(MONTH FROM first_day_exposition) AS month_of_first_exposition,
 		EXTRACT(MONTH FROM (first_day_exposition + days_exposition * INTERVAL '1 day')::DATE) AS month_of_sale_exposition
 	FROM real_estate.advertisement 
-	WHERE days_exposition IS NOT NULL
+	JOIN real_estate.flats USING(id)
+	WHERE days_exposition IS NOT NULL AND id IN (SELECT * FROM filtered_id)
 ),
 statistic_for_start AS 
 (
 	SELECT
 		COUNT(id),
 		month_of_first_exposition,
-		RANK() OVER(ORDER BY COUNT(id) DESC) AS start_month_rank
+		RANK() OVER(ORDER BY COUNT(id) DESC) AS start_month_rank,
+		ROUND(AVG(price_for_square_metr)::NUMERIC, 2) AS avg_square_price,
+		ROUND(AVG(total_area)::NUMERIC, 2) AS avg_total_area
 	FROM full_advertisement
 	GROUP BY(month_of_first_exposition)
 	ORDER BY start_month_rank
@@ -200,7 +223,9 @@ statistic_for_sale AS
 SELECT 
 	month_of_first_exposition AS month,
 	start_month_rank,
-	sale_month_rank
+	sale_month_rank,
+	avg_square_price,
+	avg_total_area
 FROM statistic_for_start strt
 JOIN statistic_for_sale sl ON strt.month_of_first_exposition = sl.month_of_sale_exposition
 ORDER BY @(start_month_rank - sale_month_rank) DESC;
