@@ -1,8 +1,9 @@
 /* Проект первого модуля: анализ данных для агентства недвижимости
  * Часть 2. Решаем ad hoc задачи
  * 
- * Автор:
+ * Автор:Колдашев Виталий Андреевич
  * Дата:
+ * Ссылка на GitHub: https://github.com/PsychoCoderrr/YPracticumProjects/blob/main/Final_project_sql.sql
 */
 
 -- Пример фильтрации данных от аномальных значений
@@ -228,7 +229,9 @@ SELECT
 	avg_total_area
 FROM statistic_for_start strt
 JOIN statistic_for_sale sl ON strt.month_of_first_exposition = sl.month_of_sale_exposition
-ORDER BY @(start_month_rank - sale_month_rank) DESC;
+ORDER BY @(start_month_rank - sale_month_rank) DESC; /* данном моменте подумал, что сортировка по разнице между рангами местами в ранге
+														будет логичной, ведь с помощью этого мы можем увидеть месяцы, в которые кол-во 
+														выставлений объявлений будет совпадать с кол-вом снятий объявлений*/ 
 
 
 
@@ -236,13 +239,13 @@ ORDER BY @(start_month_rank - sale_month_rank) DESC;
 
 
 
-
+/* 
 SELECT 
 	*,
 	(first_day_exposition + days_exposition * INTERVAL '1 day')::DATE AS last_day_exposition
 FROM real_estate.advertisement 
 WHERE days_exposition IS NOT NULL;
-
+*/
 
 
 
@@ -257,3 +260,57 @@ WHERE days_exposition IS NOT NULL;
 --    То есть где недвижимость продаётся быстрее, а где — медленнее.
 
 -- Напишите ваш запрос здесь
+
+WITH limits AS (
+    SELECT  
+        PERCENTILE_DISC(0.99) WITHIN GROUP (ORDER BY total_area) AS total_area_limit,
+        PERCENTILE_DISC(0.99) WITHIN GROUP (ORDER BY rooms) AS rooms_limit,
+        PERCENTILE_DISC(0.99) WITHIN GROUP (ORDER BY balcony) AS balcony_limit,
+        PERCENTILE_DISC(0.99) WITHIN GROUP (ORDER BY ceiling_height) AS ceiling_height_limit_h,
+        PERCENTILE_DISC(0.01) WITHIN GROUP (ORDER BY ceiling_height) AS ceiling_height_limit_l
+    FROM real_estate.flats     
+),
+-- Найдём id объявлений, которые не содержат выбросы:
+filtered_id AS(
+    SELECT id
+    FROM real_estate.flats  
+    WHERE 
+        total_area < (SELECT total_area_limit FROM limits)
+        AND (rooms < (SELECT rooms_limit FROM limits) OR rooms IS NULL)
+        AND (balcony < (SELECT balcony_limit FROM limits) OR balcony IS NULL)
+        AND ((ceiling_height < (SELECT ceiling_height_limit_h FROM limits)
+            AND ceiling_height > (SELECT ceiling_height_limit_l FROM limits)) OR ceiling_height IS NULL)
+),
+count_of_saled_advertisements AS 
+(
+	SELECT 
+		city_id,
+		COUNT(id) AS count_of_saled
+	FROM  real_estate.advertisement
+	JOIN real_estate.flats USING(id)
+	WHERE days_exposition IS NOT NULL
+	AND id IN (SELECT * FROM filtered_id)
+	AND city_id <> (SELECT city_id FROM real_estate.city WHERE city = 'Санкт-Петербург')
+	GROUP BY city_id
+),
+information_table AS
+(
+	SELECT
+		city_id,
+		COUNT(id) AS city_activity --не забыть потом в основном запросе заджойнить таблицу выше и посчитать долю
+	FROM real_estate.flats
+	JOIN real_estate.city USING(city_id)
+	JOIN count_of_saled_advertisements USING(city_id)
+	WHERE id IN (SELECT * FROM filtered_id) 
+	AND city_id <> (SELECT city_id FROM real_estate.city WHERE city = 'Санкт-Петербург')
+	GROUP BY city_id
+)
+SELECT *
+FROM information_table
+LIMIT 15;
+	
+	
+	
+
+
+
