@@ -107,23 +107,31 @@ SELECT
 	PERCENTILE_DISC(0.5)
 	WITHIN GROUP (ORDER BY floor) AS median_floor
 FROM information_with_categories
+WHERE price_for_square_metr IS NOT NULL 
+	AND total_area IS NOT NULL
+	AND rooms IS NOT NULL
+	AND balcony IS NOT NULL
+	AND floor IS NOT NULL
 GROUP BY sp_or_not, activity
-ORDER BY Region DESC, AVG(days_exposition);
+ORDER BY Region DESC, AVG(days_exposition); /* в сортировке используется здесь среднее, чтобы более красивая была сортировка 
+												по сегментации*/
 
+
+/*
 -- Запрос для проверки правильности нахождения айди Санкт-Петербурга
 SELECT 
 	city_id
 FROM real_estate.city
 WHERE city = 'Санкт-Петербург'
 
-
+-- Запрос для проверки правильности нахождения айди типа населенного пункта город
 SELECT 
 	type_id
 FROM real_estate.type 
 WHERE type = 'город'
 
 
-
+--запрос для проверки правильности работы функции justify_days
 WITH helpful AS 
 (
 SELECT 
@@ -145,6 +153,7 @@ SELECT
 		THEN 'больше полугода'
 	END
 FROM helpful;
+*/
 
 -- Задача 2: Сезонность объявлений
 -- Результат запроса должен ответить на такие вопросы:
@@ -156,6 +165,21 @@ FROM helpful;
 --    Что можно сказать о зависимости этих параметров от месяца?
 
 -- Напишите ваш запрос здесь
+
+
+
+
+
+
+
+
+SELECT 
+	*,
+	(first_day_exposition + days_exposition * INTERVAL '1 day')::DATE AS last_day_exposition
+FROM real_estate.advertisement 
+WHERE days_exposition IS NOT NULL;
+
+
 
 
 -- Задача 3: Анализ рынка недвижимости Ленобласти
