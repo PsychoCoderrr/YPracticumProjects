@@ -166,6 +166,45 @@ FROM helpful;
 
 -- Напишите ваш запрос здесь
 
+WITH 
+full_advertisement AS
+(
+	SELECT 
+		*,
+		(first_day_exposition + days_exposition * INTERVAL '1 day')::DATE AS last_day_exposition,
+		EXTRACT(MONTH FROM first_day_exposition) AS month_of_first_exposition,
+		EXTRACT(MONTH FROM (first_day_exposition + days_exposition * INTERVAL '1 day')::DATE) AS month_of_sale_exposition
+	FROM real_estate.advertisement 
+	WHERE days_exposition IS NOT NULL
+),
+statistic_for_start AS 
+(
+	SELECT
+		COUNT(id),
+		month_of_first_exposition,
+		RANK() OVER(ORDER BY COUNT(id) DESC) AS start_month_rank
+	FROM full_advertisement
+	GROUP BY(month_of_first_exposition)
+	ORDER BY start_month_rank
+),
+statistic_for_sale AS
+(
+	SELECT 
+		COUNT(id),
+		month_of_sale_exposition,
+		RANK() OVER(ORDER BY COUNT(id) DESC) AS sale_month_rank
+	FROM full_advertisement
+	GROUP BY month_of_sale_exposition
+	ORDER BY sale_month_rank
+)
+SELECT 
+	month_of_first_exposition AS month,
+	start_month_rank,
+	sale_month_rank
+FROM statistic_for_start strt
+JOIN statistic_for_sale sl ON strt.month_of_first_exposition = sl.month_of_sale_exposition
+ORDER BY @(start_month_rank - sale_month_rank) DESC;
+
 
 
 
