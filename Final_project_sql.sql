@@ -300,7 +300,7 @@ information_table AS
 		COUNT(id) AS city_activity, --не забыть потом в основном запросе заджойнить таблицу выше и посчитать долю
 		AVG(last_price / total_area) AS avg_price_for_square,
 		AVG(total_area) AS avg_area,
-		justify_days(ROUND(AVG(days_exposition)::NUMERIC)::int * INTERVAL '1 day')
+		justify_days(ROUND(AVG(days_exposition)::NUMERIC)::int * INTERVAL '1 day') AS time_for_sale
 	FROM real_estate.flats
 	JOIN real_estate.city USING(city_id)
 	JOIN real_estate.advertisement USING(id)
@@ -309,8 +309,19 @@ information_table AS
 	AND city_id <> (SELECT city_id FROM real_estate.city WHERE city = 'Санкт-Петербург')
 	GROUP BY city_id
 )
-SELECT *
+SELECT 
+	city,
+	city_activity,
+	ROUND(count_of_saled::NUMERIC / city_activity::NUMERIC, 2) AS share_of_saled,
+	ROUND(avg_price_for_square::NUMERIC, 2) AS avg_price_for_square,
+	ROUND(avg_area::NUMERIC, 2) AS avg_area,
+	time_for_sale
 FROM information_table
+JOIN real_estate.city USING(city_id)
+JOIN count_of_saled_advertisements USING(city_id)
+WHERE city_activity > 50 /*решил все-таки добавить данный фильтр, иначе при расчете доли проданных лидировали регионы, в которых было по 
+							по 1-5 продаж, естественно это не очень объективно*/
+ORDER BY share_of_saled DESC --изменяя поле, по которому проходит фильтрация, я получал ответы на поставленные вопросы
 LIMIT 15;
 	
 	
